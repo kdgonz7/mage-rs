@@ -3,8 +3,6 @@
 // with paging n stuff
 //
 
-use std::fmt::Error;
-
 pub struct MagePage {
     p_frame: Vec<i16>,    // holds the info
 }
@@ -42,42 +40,41 @@ impl MagePage {
         }
     }
 
-    fn read_from(&self, offset: usize, amount_of_bytes: usize) -> Result<Vec<i16>, i32> {
-        let mut all_bytes: Vec<i16> = Vec::new();
-
+    fn read_from(&self, offset: usize, amount_of_bytes: usize) -> Result<Vec<i16>, MageError> {
         if (offset + amount_of_bytes) > self.p_frame.len() {
-            Err(0)
-        } else {
-            for p in offset..offset + amount_of_bytes {
-                all_bytes.push(self.p_frame[p]);
-            }
-
-            Ok(all_bytes)
+            return Err(MageError::MRanOutOfSpaceError)
         }
+
+        Ok(self.p_frame[offset..(offset+amount_of_bytes)].to_vec())
     }
 
-    fn write_i32(&mut self, offset: usize, int: i32) {
+    fn write_i32(&mut self, offset: usize, int: i32) -> Result<(), MageError> {
         let req_size = size_of::<i32>();
         
         if offset + req_size > self.p_frame.len() {
-            panic!("{} is bigger than {}, can not continue", offset + req_size, self.p_frame.len())
+            return Err(MageError::MRanOutOfSpaceError)
         }
 
-        let writing: Vec<u8> = int.to_le_bytes().to_vec();
+        let writing: Vec<i16> = int.to_le_bytes().into_iter().map(|b| b as i16).collect();
+        self.set_offset(offset, writing);
 
-        let mut cur = 0;
-
-        for i in offset..offset+req_size {
-            self.p_frame[i] = writing[cur].try_into().unwrap();
-
-            cur = cur + 1
-        }
+        Ok(())      
     }
 }
 
 fn main() {
     let mut page: MagePage = MagePage::new(2048);
-    page.write_i32(0, 355);
+    let write_355 = page.write_i32(0, 355);
+
+    match write_355 {
+        Ok(_) => {
+            println!("wrote");
+        }
+        Err(_) => {
+            println!("failed to write 355");
+        }
+    }
+
     let bytes_read = page.read_from(0, 4).unwrap();
 
     println!("{:#?}", bytes_read)
